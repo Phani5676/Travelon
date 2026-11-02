@@ -1,5 +1,10 @@
+from urllib.parse import quote
+import re
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,6 +24,7 @@ from .services import (
     release_expired,
 )
 from .tickets import qr_data_uri, ticket_pdf_bytes
+from .notifications import send_ticket_email
 
 
 def get_user_booking(request, pnr):
@@ -37,6 +43,19 @@ def check_active_hold(request, booking):
     if booking.status != Booking.HELD:
         messages.error(request, "Your seat hold ended. Pick your seats again.")
         return redirect("seat_map", trip_id=booking.trip_id)
+    return None
+
+
+def normalize_phone(text):
+    """Turn what the user typed into digits with a country code, or None if it is not valid.
+    A 10-digit Indian number gets 91 added in front, for example 9876543210 -> 919876543210."""
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        digits = "91" + digits
+    if 11 <= len(digits) <= 15:
+        return digits
     return None
 
 
@@ -122,6 +141,27 @@ def passengers(request, pnr):
     rows = []
     all_valid = True
 
+    # Contact details: where the ticket will be sent
+    if request.method == "POST":
+        contact_email = request.POST.get("contact_email", "").strip()
+        contact_phone = request.POST.get("contact_phone", "").strip()
+    else:
+        contact_email = booking.contact_email or request.user.email
+        contact_phone = booking.contact_phone
+
+    contact_errors = []
+    phone_clean = None
+    if request.method == "POST":
+        try:
+            validate_email(contact_email)
+        except ValidationError:
+            contact_errors.append("Enter a valid email address.")
+        phone_clean = normalize_phone(contact_phone)
+        if phone_clean is None:
+            contact_errors.append("Enter a valid mobile number, for example 9876543210.")
+        if contact_errors:
+            all_valid = False
+
     for item in items:
         if request.method == "POST":
             name = request.POST.get(f"name_{item.id}", "").strip()
@@ -151,6 +191,10 @@ def passengers(request, pnr):
         rows.append({"item": item, "name": name, "age": age_text, "gender": gender, "errors": errors, "age_value": age})
 
     if request.method == "POST" and all_valid:
+        booking.contact_email = contact_email
+        booking.contact_phone = phone_clean
+        booking.save(update_fields=["contact_email", "contact_phone"])
+
         for row in rows:
             item = row["item"]
             item.passenger_name = row["name"]
@@ -159,7 +203,14 @@ def passengers(request, pnr):
             item.save(update_fields=["passenger_name", "age", "gender"])
         return redirect("pay", pnr=booking.pnr)
 
-    return render(request, "bookings/passengers.html", {"booking": booking, "rows": rows})
+    context = {
+        "booking": booking,
+        "rows": rows,
+        "contact_email": contact_email,
+        "contact_phone": contact_phone,
+        "contact_errors": contact_errors,
+    }
+    return render(request, "bookings/passengers.html", context)
 
 
 # ------------------------------------------------------------ Payment (practice payment)
@@ -167,7 +218,6 @@ def passengers(request, pnr):
 def pay(request, pnr):
     booking = get_user_booking(request, pnr)
 
-    # Already paid? Show the ticket.
     if booking.status == Booking.PAID:
         return redirect("ticket", pnr=booking.pnr)
 
@@ -190,6 +240,8 @@ def pay(request, pnr):
                 messages.error(request, str(error))
                 return redirect("seat_map", trip_id=booking.trip_id)
 
+            booking.refresh_from_db()
+            send_ticket_email(booking)  # does nothing until real email is set up
             messages.success(request, "Payment received. Your ticket is ready.")
             return redirect("ticket", pnr=booking.pnr)
 
@@ -208,6 +260,24 @@ def ticket(request, pnr):
         messages.error(request, "This booking has no valid ticket.")
         return redirect("home")
 
+    # The ticket details as plain text, for the WhatsApp and email buttons
+    trip = booking.trip
+    departs = timezone.localtime(trip.departure_time).strftime("%a, %d %b %Y, %H:%M")
+    share_text = (
+        f"BusGo ticket {booking.pnr}\n"
+        f"{trip.route.source} to {trip.route.destination}\n"
+        f"Bus: {trip.bus.name} ({trip.bus.get_bus_type_display()})\n"
+        f"Departs: {departs}\n"
+        f"Seats: {booking.seat_summary}\n"
+        f"Total paid: Rs. {booking.total_amount}\n"
+        f"Show booking code {booking.pnr} when you board."
+    )
+    subject = f"Your BusGo ticket {booking.pnr}"
+    to_email = booking.contact_email or request.user.email
+    email_link = f"mailto:{quote(to_email, safe='@')}?subject={quote(subject, safe='')}&body={quote(share_text, safe='')}"
+    phone = "".join(ch for ch in booking.contact_phone if ch.isdigit())
+    whatsapp_link = f"https://wa.me/{phone}?text={quote(share_text, safe='')}"
+
     return render(
         request,
         "bookings/ticket.html",
@@ -215,6 +285,8 @@ def ticket(request, pnr):
             "booking": booking,
             "seat_items": booking.seats.select_related("seat"),
             "qr": qr_data_uri(f"BUSGO|{booking.pnr}"),
+            "email_link": email_link,
+            "whatsapp_link": whatsapp_link,
         },
     )
 
@@ -229,7 +301,6 @@ def ticket_pdf(request, pnr):
     response = HttpResponse(ticket_pdf_bytes(booking), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="busgo-ticket-{booking.pnr}.pdf"'
     return response
-
 
 
 # ------------------------------------------------------------ My bookings

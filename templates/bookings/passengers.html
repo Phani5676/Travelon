@@ -15,6 +15,29 @@
   <form method="post" novalidate>
     {% csrf_token %}
 
+    <div class="card card-body shadow-sm mb-3">
+      <h2 class="h5">Where should we send your ticket?</h2>
+      <p class="text-muted small mb-3">Your ticket will be sent to this email and mobile number after payment.</p>
+
+      {% for error in contact_errors %}
+        <div class="text-danger small mb-1">{{ error }}</div>
+      {% endfor %}
+
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label" for="contact_email">Email</label>
+          <input class="form-control" type="email" id="contact_email" name="contact_email"
+                 value="{{ contact_email }}" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="contact_phone">Mobile number (WhatsApp)</label>
+          <input class="form-control" type="tel" id="contact_phone" name="contact_phone"
+                 value="{{ contact_phone }}" placeholder="9876543210" required>
+          <div class="form-text">Indian numbers: type the 10 digits. For other countries, add the country code.</div>
+        </div>
+      </div>
+    </div>
+
     {% for row in rows %}
       <div class="card card-body shadow-sm mb-3">
         <h2 class="h5 mb-3">Passenger for seat <span class="badge text-bg-warning">{{ row.item.seat.label }}</span></h2>

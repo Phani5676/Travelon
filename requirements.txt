@@ -1,0 +1,8 @@
+Django>=6.1,<6.2
+psycopg2-binary
+qrcode[pil]
+reportlab
+python-dotenv
+gunicorn
+whitenoise
+dj-database-url

@@ -29,6 +29,8 @@ class Booking(models.Model):
     service_fee = models.DecimalField(max_digits=7, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=10, blank=True)
+    contact_email = models.EmailField(blank=True, default="")
+    contact_phone = models.CharField(max_length=15, blank=True, default="")
     held_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)

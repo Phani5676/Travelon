@@ -148,3 +148,59 @@ LOGOUT_REDIRECT_URL = "home"
 from django.contrib.messages import constants as message_constants
 
 MESSAGE_TAGS = {message_constants.ERROR: "danger"}
+
+# ---------------------------------------------------------------- Email
+# Without Gmail details in .env, emails are printed in the terminal (safe for testing).
+# With GMAIL_USER and GMAIL_APP_PASSWORD in .env, real emails are sent through Gmail.
+GMAIL_USER = os.getenv("GMAIL_USER", "")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+
+if GMAIL_USER and GMAIL_APP_PASSWORD:
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {
+                "host": "smtp.gmail.com",
+                "use_tls": True,
+                "username": GMAIL_USER,
+                "password": GMAIL_APP_PASSWORD,
+                "timeout": 10,
+            },
+        },
+    }
+    DEFAULT_FROM_EMAIL = f"BusGo <{GMAIL_USER}>"
+else:
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.console.EmailBackend",
+        },
+    }
+    DEFAULT_FROM_EMAIL = "BusGo <noreply@busgo.local>"
+    
+# ---------------------------------------------------------------- Deployment (Render)
+import dj_database_url
+
+SECRET_KEY = os.getenv("SECRET_KEY", SECRET_KEY)
+DEBUG = os.getenv("DEBUG", "True") == "True"
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+CSRF_TRUSTED_ORIGINS = []
+
+# Render tells the app its own web address through this variable
+RENDER_HOST = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_HOST:
+    ALLOWED_HOSTS.append(RENDER_HOST)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_HOST}")
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# On Render the database comes from DATABASE_URL; on your laptop it still uses .env
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    DATABASES["default"] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+
+# Static files (CSS for the admin panel) served by WhiteNoise
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}

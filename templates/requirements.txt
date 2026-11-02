@@ -1,0 +1,8 @@
+Set-Content requirements.txt "Django>=6.1,<6.2"
+Add-Content requirements.txt "psycopg2-binary"
+Add-Content requirements.txt "qrcode[pil]"
+Add-Content requirements.txt "reportlab"
+Add-Content requirements.txt "python-dotenv"
+Add-Content requirements.txt "gunicorn"
+Add-Content requirements.txt "whitenoise"
+Add-Content requirements.txt "dj-database-url"
