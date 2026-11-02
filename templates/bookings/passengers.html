@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Passenger details - BusGo{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 560px;">
+
+  {% include "includes/countdown.html" %}
+
+  <h1 class="mb-1">Passenger details</h1>
+  <p class="text-muted">
+    {{ booking.trip.route }} &middot; {{ booking.trip.departure_time|date:"D, d M, H:i" }}
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% for row in rows %}
+      <div class="card card-body shadow-sm mb-3">
+        <h2 class="h5 mb-3">Passenger for seat <span class="badge text-bg-warning">{{ row.item.seat.label }}</span></h2>
+
+        {% for error in row.errors %}
+          <div class="text-danger small mb-1">{{ error }}</div>
+        {% endfor %}
+
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="name_{{ row.item.id }}">Full name</label>
+            <input class="form-control" id="name_{{ row.item.id }}" name="name_{{ row.item.id }}"
+                   value="{{ row.name }}" maxlength="80" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label" for="age_{{ row.item.id }}">Age</label>
+            <input class="form-control" type="number" min="1" max="120"
+                   id="age_{{ row.item.id }}" name="age_{{ row.item.id }}" value="{{ row.age }}" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label" for="gender_{{ row.item.id }}">Gender</label>
+            <select class="form-select" id="gender_{{ row.item.id }}" name="gender_{{ row.item.id }}" required>
+              <option value="" {% if not row.gender %}selected{% endif %}>Choose</option>
+              <option value="M" {% if row.gender == "M" %}selected{% endif %}>Male</option>
+              <option value="F" {% if row.gender == "F" %}selected{% endif %}>Female</option>
+              <option value="O" {% if row.gender == "O" %}selected{% endif %}>Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="d-flex gap-3 align-items-center">
+      <button class="btn btn-warning fw-bold" type="submit">Save details</button>
+      <a href="{% url 'seat_map' booking.trip_id %}">Change seats</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+<div class="alert alert-warning d-flex align-items-center gap-2" id="hold-timer"
+     data-seconds="{{ booking.seconds_left }}" data-url="{% url 'seat_map' booking.trip_id %}">
+  <span>Your seats are held for</span>
+  <strong id="hold-clock" style="font-variant-numeric: tabular-nums; font-size: 1.2rem;">--:--</strong>
+</div>
+
+<script>
+  (function () {
+    var timer = document.getElementById("hold-timer");
+    var left = parseInt(timer.dataset.seconds, 10);
+    var clock = document.getElementById("hold-clock");
+    var backUrl = timer.dataset.url;
+
+    function draw() {
+      var minutes = Math.floor(left / 60);
+      var seconds = left % 60;
+      clock.textContent = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+      timer.classList.toggle("alert-danger", left <= 60);
+      timer.classList.toggle("alert-warning", left > 60);
+    }
+
+    draw();
+    var handle = setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(handle);
+        window.location.href = backUrl;
+        return;
+      }
+      draw();
+    }, 1000);
+  })();
+</script>

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Payment - BusGo{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 560px;">
+
+  {% include "includes/countdown.html" %}
+
+  <h1 class="mb-1">Review and pay</h1>
+  <p class="text-muted">
+    {{ booking.trip.route }} &middot; {{ booking.trip.departure_time|date:"D, d M, H:i" }} &middot; {{ booking.trip.bus.name }}
+  </p>
+
+  <div class="card card-body shadow-sm mb-3">
+    <h2 class="h5">Passengers</h2>
+    {% for item in seat_items %}
+      <div class="d-flex justify-content-between py-1">
+        <span><span class="badge text-bg-warning">{{ item.seat.label }}</span> {{ item.passenger_name }}, {{ item.age }}</span>
+        <span class="text-muted">{{ item.get_gender_display }}</span>
+      </div>
+    {% endfor %}
+
+    <hr>
+    <div class="d-flex justify-content-between"><span>Fare</span><span>&#8377;{{ booking.fare|floatformat:0 }}</span></div>
+    <div class="d-flex justify-content-between"><span>Service fee</span><span>&#8377;{{ booking.service_fee|floatformat:0 }}</span></div>
+    <hr>
+    <div class="d-flex justify-content-between fw-bold fs-5"><span>Total</span><span>&#8377;{{ booking.total_amount|floatformat:0 }}</span></div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="form-check border rounded p-3 mb-2 bg-white">
+      <input class="form-check-input ms-0 me-2" type="radio" name="method" id="m-upi" value="upi" checked>
+      <label class="form-check-label" for="m-upi"><strong>UPI</strong><br><small class="text-muted">Practice payment, no money moves</small></label>
+    </div>
+    <div class="form-check border rounded p-3 mb-3 bg-white">
+      <input class="form-check-input ms-0 me-2" type="radio" name="method" id="m-card" value="card">
+      <label class="form-check-label" for="m-card"><strong>Card</strong><br><small class="text-muted">Practice payment, no money moves</small></label>
+    </div>
+
+    <button class="btn btn-warning fw-bold w-100" type="submit">Pay &#8377;{{ booking.total_amount|floatformat:0 }}</button>
+  </form>
+
+  <p class="small text-muted mt-3">
+    This is a practice project, so the payment is pretend. A real gateway such as Razorpay can replace this step later.
+  </p>
+</div>
+{% endblock %}

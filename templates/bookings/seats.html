@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Choose seats - BusGo{% endblock %}
+
+{% block content %}
+<style>
+  .bus-shell { background: #fff; border: 2px solid #198754; border-radius: 36px 36px 16px 16px; padding: 18px 22px 22px; max-width: 360px; }
+  .bus-front { text-align: right; border-bottom: 2px dashed #ccc; padding-bottom: 10px; margin-bottom: 14px; color: #6c757d; font-size: .85rem; }
+  .seat-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+  .seat-pair { display: flex; gap: 8px; min-width: 96px; }
+  .aisle { width: 26px; }
+  .seat { width: 44px; height: 44px; border-radius: 8px; border: 2px solid #ced4da; background: #fff; font-weight: 700; font-size: .78rem; padding: 0; cursor: pointer; }
+  .seat:hover:not(:disabled) { border-color: #198754; }
+  .seat.is-selected { background: #ffc107; border-color: #cc9a06; }
+  .seat:disabled { background: #dee2e6; color: #9aa3ab; border-color: #dee2e6; cursor: not-allowed; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: .88rem; color: #6c757d; margin-bottom: 14px; }
+  .legend i { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 2px solid #ced4da; background: #fff; vertical-align: -3px; margin-right: 4px; }
+  .legend i.sel { background: #ffc107; border-color: #cc9a06; }
+  .legend i.taken { background: #dee2e6; border-color: #dee2e6; }
+  .chip { display: inline-block; background: #ffc107; border-radius: 999px; padding: 2px 12px; font-weight: 700; font-size: .85rem; margin: 0 6px 6px 0; }
+</style>
+
+<h1 class="mb-1">{{ trip.route.source }} to {{ trip.route.destination }}</h1>
+<p class="text-muted">
+  {{ trip.bus.operator.company_name }} &middot; {{ trip.bus.name }} ({{ trip.bus.get_bus_type_display }}) &middot;
+  departs {{ trip.departure_time|date:"D, d M, H:i" }} &middot; {{ free_count }} seat{{ free_count|pluralize }} free
+</p>
+
+<form method="post" action="{% url 'hold' trip.id %}" id="seat-form"
+      data-price="{{ trip.price|floatformat:'2u' }}" data-fee="{{ service_fee|floatformat:'2u' }}" data-max="6">
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <div class="col-md-6">
+      <div class="legend">
+        <span><i></i>Free</span>
+        <span><i class="sel"></i>Your pick</span>
+        <span><i class="taken"></i>Taken</span>
+      </div>
+
+      <div class="bus-shell">
+        <div class="bus-front">Driver</div>
+        {% for row in grid %}
+          <div class="seat-row">
+            <div class="seat-pair">
+              {% for seat in row.left %}
+                <button type="button" class="seat {% if seat.state == 'mine' %}is-selected{% endif %}"
+                        data-id="{{ seat.id }}" data-label="{{ seat.label }}"
+                        {% if seat.state == 'booked' %}disabled{% endif %}>{{ seat.label }}</button>
+              {% endfor %}
+            </div>
+            <div class="aisle"></div>
+            <div class="seat-pair">
+              {% for seat in row.right %}
+                <button type="button" class="seat {% if seat.state == 'mine' %}is-selected{% endif %}"
+                        data-id="{{ seat.id }}" data-label="{{ seat.label }}"
+                        {% if seat.state == 'booked' %}disabled{% endif %}>{{ seat.label }}</button>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card card-body shadow-sm">
+        <h2 class="h5">Your seats</h2>
+        <div id="chosen" style="min-height: 34px;"></div>
+        <p class="text-danger small" id="limit-msg" hidden>You can book up to 6 seats at a time.</p>
+
+        <div class="d-flex justify-content-between"><span>Fare</span><span id="sum-fare">&#8377;0</span></div>
+        <div class="d-flex justify-content-between"><span>Service fee</span><span>&#8377;{{ service_fee|floatformat:0 }}</span></div>
+        <hr>
+        <div class="d-flex justify-content-between fw-bold fs-5"><span>Total</span><span id="sum-total">&#8377;0</span></div>
+
+        <div id="hidden-seats"></div>
+
+        {% if user.is_authenticated %}
+          <button class="btn btn-warning fw-bold w-100 mt-3" id="continue-btn" type="submit" disabled>Hold seats</button>
+          <p class="small text-muted mt-2 mb-0">We hold your seats for {{ hold_minutes }} minutes.</p>
+        {% else %}
+          <a class="btn btn-warning fw-bold w-100 mt-3" href="{% url 'login' %}?next={{ request.path|urlencode }}">Log in to book</a>
+          <p class="small text-muted mt-2 mb-0">You need an account to hold seats.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<script>
+  (function () {
+    var form = document.getElementById("seat-form");
+    var price = parseFloat(form.dataset.price);
+    var fee = parseFloat(form.dataset.fee);
+    var maxSeats = parseInt(form.dataset.max, 10);
+    var seats = form.querySelectorAll(".seat[data-id]");
+    var chosenBox = document.getElementById("chosen");
+    var hiddenBox = document.getElementById("hidden-seats");
+    var fareEl = document.getElementById("sum-fare");
+    var totalEl = document.getElementById("sum-total");
+    var submit = document.getElementById("continue-btn");
+    var limitMsg = document.getElementById("limit-msg");
+
+    function money(value) {
+      return "\u20B9" + value.toLocaleString("en-IN");
+    }
+
+    function refresh() {
+      var selected = form.querySelectorAll(".seat.is-selected");
+      chosenBox.innerHTML = "";
+      hiddenBox.innerHTML = "";
+
+      selected.forEach(function (seat) {
+        var chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = seat.dataset.label;
+        chosenBox.appendChild(chip);
+
+        var input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "seats";
+        input.value = seat.dataset.id;
+        hiddenBox.appendChild(input);
+      });
+
+      var fare = selected.length * price;
+      fareEl.textContent = money(selected.length ? fare : 0);
+      totalEl.textContent = money(selected.length ? fare + fee : 0);
+      if (submit) { submit.disabled = selected.length === 0; }
+    }
+
+    seats.forEach(function (seat) {
+      seat.addEventListener("click", function () {
+        var count = form.querySelectorAll(".seat.is-selected").length;
+        var already = seat.classList.contains("is-selected");
+        if (!already && count >= maxSeats) {
+          limitMsg.hidden = false;
+          return;
+        }
+        limitMsg.hidden = true;
+        seat.classList.toggle("is-selected");
+        refresh();
+      });
+    });
+
+    refresh();
+  })();
+</script>
+{% endblock %}

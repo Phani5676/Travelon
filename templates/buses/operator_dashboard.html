@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Operator dashboard - BusGo{% endblock %}
+
+{% block content %}
+  <h1 class="mb-1">{{ operator.company_name }}</h1>
+  <p class="text-muted">Add buses, create routes, and schedule trips. Passengers see them in search straight away.</p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card card-body shadow-sm"><div class="fs-2 fw-bold">{{ buses|length }}</div>Buses</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card card-body shadow-sm"><div class="fs-2 fw-bold">{{ trips|length }}</div>Upcoming trips</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card card-body shadow-sm"><div class="fs-2 fw-bold">{{ paid_bookings }}</div>Paid bookings</div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap mb-4">
+    <a class="btn btn-warning fw-bold" href="{% url 'add_bus' %}">Add bus</a>
+    <a class="btn btn-success" href="{% url 'add_route' %}">Add route</a>
+    <a class="btn btn-success" href="{% url 'add_trip' %}">Schedule trip</a>
+  </div>
+
+  <h2 class="h4">Upcoming trips</h2>
+  <div class="table-responsive bg-white border rounded mb-4">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr><th>Route</th><th>Bus</th><th>Departs</th><th>Seats taken</th><th>Price</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for trip in trips %}
+          <tr>
+            <td>{{ trip.route }}</td>
+            <td>{{ trip.bus.name }}</td>
+            <td>{{ trip.departure_time|date:"d M, H:i" }}</td>
+            <td>{{ trip.booked }} / {{ trip.bus.total_seats }}</td>
+            <td>&#8377;{{ trip.price|floatformat:0 }}</td>
+            <td><a href="{% url 'trip_bookings' trip.id %}">View bookings</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No trips yet. Add a bus and a route, then schedule your first trip.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4">Your buses</h2>
+  <div class="table-responsive bg-white border rounded">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Name</th><th>Type</th><th>Seats</th></tr></thead>
+      <tbody>
+        {% for bus in buses %}
+          <tr><td>{{ bus.name }}</td><td>{{ bus.get_bus_type_display }}</td><td>{{ bus.total_seats }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-center text-muted py-4">No buses yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

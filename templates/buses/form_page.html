@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - BusGo{% endblock %}
+
+{% block content %}
+  <div class="mx-auto" style="max-width: 560px;">
+    <h1 class="mb-3">{{ title }}</h1>
+    <div class="card card-body shadow-sm">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% include "includes/form_fields.html" %}
+        <button class="btn btn-warning fw-bold" type="submit">{{ button }}</button>
+        <a class="btn btn-link" href="{% url 'operator_dashboard' %}">Cancel</a>
+      </form>
+    </div>
+  </div>
+{% endblock %}

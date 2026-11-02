@@ -1,0 +1,6 @@
+.env
+db.sqlite3
+old_data.json
+__pycache__/
+*.pyc
+staticfiles/
